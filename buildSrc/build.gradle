@@ -7,7 +7,7 @@ plugins {
 }
 
 buildConfig {
-    buildConfigField(String, 'APP_PLATFORM_GROUP', property('GROUP'))
+    buildConfigField(String, 'APP_PLATFORM_GROUP', "software.amazon.app.platform")
 }
 
 ktfmt {
@@ -78,7 +78,7 @@ dependencies {
     implementation libs.ktfmt.gradle.plugin
     implementation libs.maven.publish.gradle.plugin
     implementation libs.detekt.gradle.plugin
-    implementation "$GROUP:gradle-plugin:$VERSION_NAME"
+    implementation "software.amazon.app.platform:gradle-plugin:0.0.4-SNAPSHOT"
 }
 
 tasks.register('release') {

@@ -26,7 +26,8 @@ public open class AppPlugin : Plugin<Project> {
     target.configureAndroidSettings()
     target.makeSingleVariant()
     target.addDependencies()
-    target.configureWasm()
+    target.configureWasmJs()
+    target.configureNonWasmJs()
 
     target.plugins.withId(Plugins.COMPOSE_MULTIPLATFORM) { target.configureDesktopApp() }
   }
@@ -54,7 +55,7 @@ public open class AppPlugin : Plugin<Project> {
   }
 
   @OptIn(ExperimentalWasmDsl::class)
-  private fun Project.configureWasm() {
+  private fun Project.configureWasmJs() {
     // For development use the Gradle task 'wasmJsBrowserDevelopmentRun'.
     //
     // Release builds are built with 'wasmJsBrowserDistribution'. To test the release run
@@ -66,6 +67,26 @@ public open class AppPlugin : Plugin<Project> {
           it.outputFileName = "sample-app.js"
           it.devServer = it.devServer ?: KotlinWebpackConfig.DevServer()
         }
+      }
+      binaries.executable()
+    }
+  }
+
+  private fun Project.configureNonWasmJs() {
+    // For development use the Gradle task 'wasmJsBrowserDevelopmentRun'.
+    //
+    // Release builds are built with 'wasmJsBrowserDistribution'. To test the release run
+    // 'npx http-server' from the folder 'sample/app/build/dist/wasmJs/productionExecutable'.
+    kmpExtension.js {
+      /*browser {
+        outputModuleName.set(project.safePathString)
+        commonWebpackConfig {
+          it.outputFileName = "sample-app.js"
+          it.devServer = it.devServer ?: KotlinWebpackConfig.DevServer()
+        }
+      }*/
+      nodejs {
+        outputModuleName.set(project.safePathString)
       }
       binaries.executable()
     }
