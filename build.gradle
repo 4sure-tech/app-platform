@@ -1,3 +1,34 @@
  plugins {
      id 'software.amazon.app.platform.root'
  }
+
+ allprojects {
+     plugins.withType(MavenPublishPlugin).configureEach {
+             publishing {
+                 repositories {
+                     maven {
+                         name = "sphereon-opensource"
+                         def snapshotsUrl = "https://nexus.sphereon.com/repository/sphereon-opensource-snapshots/"
+                         def releasesUrl = "https://nexus.sphereon.com/repository/sphereon-opensource-releases/"
+                         url = uri(version.toString().contains("SNAPSHOT") ? snapshotsUrl : releasesUrl)
+                         credentials {
+                             username = System.getenv("NEXUS_USERNAME")
+                             password = System.getenv("NEXUS_PASSWORD")
+                         }
+                     }
+                 }
+
+                 // Ensure unique coordinates for different publication types
+                 publications.withType(MavenPublication) {
+                     def publicationName = name
+                     if (publicationName == "kotlinMultiplatform") {
+                         artifactId = "${project.name}-multiplatform"
+                     } else if (publicationName == "mavenKotlin") {
+                         artifactId = "${project.name}-jvm"
+                     }
+                 }
+             }
+         }
+
+
+ }

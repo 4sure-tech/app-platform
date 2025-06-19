@@ -13,7 +13,12 @@ dependencyResolutionManagement {
         mavenCentral()
         google()
         gradlePluginPortal()
-
+        maven {
+            url = uri("https://nexus.sphereon.com/repository/sphereon-opensource-snapshots")
+        }
+        maven {
+            url = uri("https://nexus.sphereon.com/repository/sphereon-opensource-releases")
+        }
         maven {
             url = "https://central.sonatype.com/repository/maven-snapshots/"
         }
