@@ -396,6 +396,116 @@ The `test()` function uses the `TestScope.backgroundScope` to run the presenter.
     [`NavigationPresenterImplTest`](https://github.com/amzn/app-platform/blob/main/sample/navigation/impl/src/commonTest/kotlin/software/amazon/app/platform/sample/navigation/NavigationPresenterImplTest.kt)
     and [`UserPagePresenterImplTest`](https://github.com/amzn/app-platform/blob/main/sample/user/impl/src/commonTest/kotlin/software/amazon/app/platform/sample/user/UserPagePresenterImplTest.kt).
 
+## Back gestures
+
+`Presenters` support back gestures with a similar API in terms of syntax and semantic to Compose Multiplatform. Any
+`Presenter` can call these functions:
+
+```kotlin
+@Composable
+fun present(input: Unit): Model {
+  BackHandlerPresenter {
+    // Handle a back press.  
+  }
+
+  PredictiveBackHandlerPresenter { progress: Flow<BackEventCompat> ->
+    // code for gesture back started
+    try {
+      progress.collect { backevent ->
+        // code for progress
+      }
+      // code for completion
+    } catch (e: CancellationException) {
+      // code for cancellation
+    }
+  }  
+}
+```
+
+!!! warning
+
+    Notice `Presenter` suffix in these function names. These functions should not be confused with `BackHandler {}` and
+    `PredictiveBackHandler {}` coming from Compose Multiplatform or Compose UI Android, which would fail at runtime 
+    when called from a `Presenter`.
+
+Calling these functions requires `BackGestureDispatcherPresenter` to be setup as composition local. This is usually
+done from the root presenter in your hierarchy. An instance of `BackGestureDispatcherPresenter` is provided by App
+Platform in the application scope and can be injected:
+
+```kotlin hl_lines="3 7 8 9"
+@Inject
+class RootPresenter(
+  private val backGestureDispatcherPresenter: BackGestureDispatcherPresenter,
+) : MoleculePresenter<Unit, Model> {
+  @Composable
+  override fun present(input: Unit): Model {
+    return returningCompositionLocalProvider(
+      LocalBackGestureDispatcherPresenter provides backGestureDispatcherPresenter
+    ) {
+      // Call other child presenters.
+    }
+  }
+}
+```
+
+The last step is to forward back gestures from the UI layer to `Presenters` to invoke the callbacks in the
+`Presenters`. Here again it's recommended to do this from within the root `Renderer`:
+
+```kotlin hl_lines="4 8"
+@Inject
+@ContributesRenderer
+class RootPresenterRenderer(
+  private val backGestureDispatcherPresenter: BackGestureDispatcherPresenter,
+) : ComposeRenderer<Model>() {
+  @Composable
+  override fun Compose(model: Model) {
+    backGestureDispatcherPresenter.ForwardBackPressEventsToPresenters()
+
+    // Call other child renderers.
+  }
+}
+```
+
+A similar built-in integration is provided for Android Views. There it's recommended to call this function from each
+Android `Activity`:
+
+```kotlin hl_lines="6"
+class MainActivity : ComponentActivity() {
+
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+
+    backGestureDispatcherPresenter.forwardBackPressEventsToPresenters(this)
+    // ...
+  }
+}
+```
+
+Unit tests verifying the behavior of a `Presenter` using the back handler APIs need to provide the composition local
+as well. This can be achieved by wrapping the `Presenter` with `withBackGestureDispatcher()`:
+
+```kotlin
+class MyPresenterTest {
+
+  @Test
+  fun `test back handler`() = runTest {
+    val presenter = MyPresenter()
+
+    presenter.withBackGestureDispatcher().test(this) {
+      // Verify the produced models from the presenter.
+    }
+  }
+}
+```
+
+??? example "Sample"
+
+    The `BackHandlerPresenter {}` call has been integrated in the sample application with this recommended setup. All
+    necessary changes are part of this [commit](https://github.com/amzn/app-platform/pull/84/commits/a807a5673973eae26940cd1130dad836cb3dbd43).
+
+    The same setup has been integrated in the recipes app part of this [commit](https://github.com/amzn/app-platform/pull/82/commits/fce1b3fbc0b2683ec6a93a499694f914bac34b18)
+    as well. 
+
 ## Compose runtime
 
 One of the major benefits of using Compose through Molecule is how the framework turns reactive streams such as
@@ -522,3 +632,279 @@ fun present(input: Unit): Model {
 
 When the `Presenter` leaves composition, then all jobs launched by this coroutine scope get canceled. For more
 details see [here](https://developer.android.com/jetpack/compose/side-effects#remembercoroutinescope).
+
+## Recipes
+
+There are common scenarios you may encounter when using `Presenters`.
+
+!!! info
+
+    The recipes below are not part of the App Platform API and we look for feedback. The solutions are either
+    implemented in the Recipes or Sample app. Please let us know if these solutions work for you or which use cases
+    you're missing.
+
+    The [Recipes app](index.md#web-recipe-app) and [Sample app](index.md#web-clickable) can be tested in the browser.
+
+### Save `Presenter` state
+
+`Presenters` can make full use of the Compose runtime, e.g. using `remember { }` and `mutableStateOf()`. But when a
+`Presenter` leaves the composition and no longer is part of the hierarchy, then it loses its state and would be called
+with the initial state the next time.
+
+```kotlin
+@Composable
+fun present(input: Unit): Model {
+  val showLogin = ...
+
+  val model = if (showLogin) {
+    loginPresenter.present(Unit)
+  } else {
+    registerPresenter.present(Unit)
+  }
+
+  return model
+}
+```
+
+Take this function for example. Every time `showLogin` is toggled then either `loginPresenter` or `registerPresenter`
+is called with their initial state. These presenters only remember their state, if `showLogin` doesn't change.
+
+The Compose runtime provides `rememberSaveable { }` and `SaveableStateHolder` as solution to save and restore instance
+state within a process or across process death. The Recipes app
+[ported `SaveableStateHolder`](https://github.com/amzn/app-platform/blob/main/recipes/common/impl/src/commonMain/kotlin/software/amazon/app/platform/recipes/saveable/ReturningSaveableStateHolder.kt)
+to work for `@Composable` functions that must return a value. `Presenters` wrapped with a
+`ReturningSaveableStateHolder` can use `rememberSaveable { }` to restore state even after they weren't part of the
+hierarchy anymore:
+
+```kotlin
+@Composable
+fun present(input: Unit): Model {
+  val showLogin = ...
+
+  val model = if (showLogin) {
+    loginPresenter.present(Unit)
+  } else {
+    registerPresenter.present(Unit)
+  }
+
+  val saveableStateHolder = rememberReturningSaveableStateHolder()
+
+  val presenter = if (showLogin) loginPresenter else registerPresenter
+
+  return saveableStateHolder.SaveableStateProvider(key = presenter) {
+    presenter.present(Unit)
+  }
+}
+```
+
+State wrapped in `rememberSaveable { }` in `LoginPresenter` and `RegisterPresenter` will be preserved no
+matter how often `showLogin` is toggled.
+
+### `Presenter` backstack
+
+With `Presenters` it's easy to implement model driven navigation. Which `Presenter` is shown on screen is part of the
+business logic.
+
+```kotlin
+@Composable
+fun present(input: Unit): Model {
+  val showLogin = ...
+
+  val model = if (showLogin) {
+    loginPresenter.present(Unit)
+  } else {
+    registerPresenter.present(Unit)
+  }
+
+  return model
+}
+```
+
+This pattern can be generalized:
+
+```kotlin
+interface NavigationManager {
+  val currentPresenter: StateFlow<MoleculePresenter<Unit, BaseModel>>
+
+  fun navigateTo(presenter: MoleculePresenter<Unit, BaseModel>)
+}
+
+@Inject
+class NavigationPresenter(val navigationManager: NavigationManager) : MoleculePresenter<Unit, BaseModel> {
+
+  @Compose
+  fun present(input: Unit): BaseModel {
+    val presenter by navigationManager.currentPresenter.collectAsState()
+    return presenter.present(Unit)
+  }
+}
+```
+
+This solution always shows the `Presenter` for which `navigateTo()` was called last. This function can be called from
+anywhere in the app.
+
+Another solution is a backstack of `Presenters`, where `Presenters` can be pushed to the stack and the top
+most `Presenter` can be popped from the stack. The Recipes app
+[implemented this navigation pattern](https://github.com/amzn/app-platform/blob/main/recipes/common/impl/src/commonMain/kotlin/software/amazon/app/platform/recipes/backstack/PresenterBackstackScope.kt)
+with an easy to use `presenterBackstack { }` function:
+
+```kotlin
+class CrossSlideBackstackPresenter(
+  private val initialPresenter: MoleculePresenter<Unit, out BaseModel>
+) : MoleculePresenter<Unit, Model> {
+  @Composable
+  override fun present(input: Unit): Model {
+    return presenterBackstack(initialPresenter) { model ->
+      // Pop the top presenter on a back press event.
+      BackHandlerPresenter(enabled = lastBackstackChange.value.backstack.size > 1) {
+        pop()
+      }
+
+      Model(delegate = model, backstackScope = this)
+    }
+  }
+}
+```
+
+`presenterBackstack { }` provides
+[PresenterBackstackScope](https://github.com/amzn/app-platform/blob/main/recipes/common/impl/src/commonMain/kotlin/software/amazon/app/platform/recipes/backstack/PresenterBackstackScope.kt),
+which allows you to `push()` and `pop()` presenters.
+[Child presenters](https://github.com/amzn/app-platform/blob/main/recipes/common/impl/src/commonMain/kotlin/software/amazon/app/platform/recipes/backstack/presenter/BackstackChildPresenter.kt#L38)
+wrapped in this function get access to this scope using a composition local:
+
+```kotlin
+@Composable
+override fun present(input: Unit): Model {
+  val backstack = checkNotNull(LocalBackstackScope.current)
+  ...
+
+  return Model() {
+    when (it) {
+      Event.AddPresenterToBackstack -> backstack.push(BackstackChildPresenter())
+    }
+  }
+}
+```
+
+[`CrossSlideBackstackPresenter`](https://github.com/amzn/app-platform/blob/main/recipes/common/impl/src/commonMain/kotlin/software/amazon/app/platform/recipes/backstack/CrossSlideBackstackPresenter.kt)
+from the Recipe app goes one step further and integrates the `BackHandlerPresenter { }` API to pop presenters from the
+stack when the back button is pressed. Its
+[`Renderer`](https://github.com/amzn/app-platform/blob/main/recipes/common/impl/src/commonMain/kotlin/software/amazon/app/platform/recipes/backstack/CrossSlideBackstackRenderer.kt)
+implements a slide animation whenever a presenter is pushed to the stack or popped from the stack.
+
+### `CompositionLocal`
+
+Both the `BackHandlerPresenter { }` integration for back button presses and the backstack recipe for navigation leverage
+[Compose's `CompositionLocal` feature](https://developer.android.com/develop/ui/compose/compositionlocal#creating).
+This is a powerful mechanism to provide state from a parent presenter to nested child presenters even deep down in
+the stack without relying on the `Input` parameter of presenters or providing
+dependencies through the constructor. Another benefit is that `CompositionLocals` are embedded in the presenter tree
+and multiple instances can be provided for different parts of the tree or even be overridden, e.g. a parent presenter
+may use a backstack, but then a child presenter may provide its own backstack for its child presenters.
+
+A common implementation may look like this:
+
+```kotlin
+class YourType
+
+public val LocalYourType: ProvidableCompositionLocal<YourType?> = compositionLocalOf { null }
+
+class ParentPresenter : MoleculePresenter<Unit, Model> {
+  @Composable
+  override fun present(input: Unit): Model {
+    val yourType = remember { YourType() }
+
+    return returningCompositionLocalProvider(
+      LocalYourType provides yourType
+    ) {
+      // ... call child presenters
+    }
+  }
+}
+
+class ChildPresenter : MoleculePresenter<Unit, Model> {
+  @Composable
+  override fun present(input: Unit): Model {
+    val yourType = checkNotNull(LocalYourType.current)
+    ...
+  }
+}
+```
+
+While `CompositionLocals` are powerful, their biggest downsides are unit tests. In a unit test for `ChildPresenter`
+a value for `LocalYourType.current` must be provided, otherwise the call will throw an exception.
+
+### App Bar
+
+The Recipes app implements an app bar for all its screens and allows child presenters to change the content.
+
+There are multiple ways to implement the app bar and decompose the different screen elements. One way is using
+[Templates](template.md), where one slot in the template is reserved for the app bar model. A specific `Presenter`
+could be responsible for providing this model:
+
+```kotlin
+sealed interface SampleAppTemplate : Template {
+
+  data class FullScreenTemplate(
+    val appBarModel: AppBarModel
+    val content: BaseModel,
+  ) : SampleAppTemplate
+}
+
+class SampleAppTemplatePresenter(
+  private val appBarPresenter: AppBarPresenter,
+  private val rootPresenter: MoleculePresenter<Unit, BaseModel>,
+) : MoleculePresenter<Unit, SampleAppTemplate> {
+  @Composable
+  fun present(input: Unit): SampleAppTemplate {
+    val contentModel = rootPresenter.present(Unit)
+
+    return contentModel.toTemplate { model ->
+      val appBarModel = appBarPresenter.present(Unit)
+      FullScreenTemplate(appBarModel, contentModel)
+    }
+  }
+}
+```
+
+The `SampleAppTemplateRenderer` has access to `appBarModel` from the `FullScreenTemplate` and can use the model
+to configure the app bar UI.
+
+The Recipe app has chosen a different implementation, where any `BaseModel` class from a `Presenter` can implement the
+specific [`AppBarConfigModel`](https://github.com/amzn/app-platform/blob/main/recipes/common/impl/src/commonMain/kotlin/software/amazon/app/platform/recipes/appbar/AppBarConfigModel.kt)
+interface, which provides the configuration for the app bar. Implementing this interface is optional:
+
+```kotlin
+class MenuPresenter : MoleculePresenter<Unit, Model> {
+  @Composable
+  override fun present(input: Unit): Model {
+    ...
+  }
+
+  data class Model(
+    private val menuItems: List<AppBarConfig.MenuItem>,
+  ) : BaseModel, AppBarConfigModel {
+    override fun appBarConfig(): AppBarConfig {
+      return AppBarConfig(title = "Menu items", menuItems = menuItems)
+    }
+  }
+}
+```
+
+If a `BaseModel` implementing `AppBarConfigModel` bubbles all the way up to the
+[`RootPresenter`](https://github.com/amzn/app-platform/blob/main/recipes/common/impl/src/commonMain/kotlin/software/amazon/app/platform/recipes/template/RootPresenter.kt),
+then the `BaseModel` from the child `Presenter` will provide the config for the `Template` or otherwise the
+`RootPresenter` will provide a default:
+
+```kotlin
+return contentModel.toTemplate { model ->
+  val appBarConfig =
+    if (model is AppBarConfigModel) {
+      model.appBarConfig().copy(backArrowAction = backArrowAction)
+    } else {
+      AppBarConfig(title = AppBarConfig.DEFAULT.title, backArrowAction = backArrowAction)
+    }
+
+  RecipesAppTemplate.FullScreenTemplate(model, appBarConfig)
+}
+```

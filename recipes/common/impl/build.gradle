@@ -1,0 +1,25 @@
+plugins {
+    id 'software.amazon.app.platform'
+
+    // This plugin lives in the buildSrc directory and is not published.
+    // It's used to manage certain configurations and dependencies for all
+    // :recipes:* modules, otherwise we'd need to repeat them several times.
+    id 'software.amazon.app.platform.lib'
+}
+
+appPlatform {
+    enableComposeUi true
+    enableKotlinInject true
+    enableModuleStructure true
+    enableMoleculePresenters true
+}
+
+dependencies {
+    commonMainImplementation compose.components.resources
+    commonMainImplementation compose.material3
+    commonMainImplementation compose.materialIconsExtended
+    commonMainImplementation compose.runtimeSaveable
+    commonMainImplementation compose.ui
+
+    commonMainImplementation libs.androidx.collection
+}
