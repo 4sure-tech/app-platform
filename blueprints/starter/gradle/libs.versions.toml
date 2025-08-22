@@ -1,6 +1,6 @@
 [versions]
 assertk = "0.28.1"
-app-platfrom = "0.0.4"
+app-platfrom = "0.0.6-SNAPSHOT"
 agp = "8.11.1"
 android-compileSdk = "36"
 android-minSdk = "21"
