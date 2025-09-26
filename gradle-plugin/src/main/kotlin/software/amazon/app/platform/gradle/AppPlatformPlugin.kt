@@ -60,6 +60,13 @@ public open class AppPlatformPlugin : Plugin<Project> {
       }
     }
 
+    plugins.withId(PluginIds.ANDROID_KMP_LIBRARY) {
+      dependencies.add(
+        "androidMainImplementation",
+        "$APP_PLATFORM_GROUP:renderer-android-view-public:$APP_PLATFORM_VERSION",
+      )
+    }
+
     plugins.withIds(PluginIds.ANDROID_APP, PluginIds.ANDROID_LIBRARY) {
       dependencies.add(
         "implementation",
@@ -80,10 +87,13 @@ public open class AppPlatformPlugin : Plugin<Project> {
 
     val implementationDependencies = buildSet {
       if (appPlatform.isMoleculeEnabled().get()) {
-        add("$APP_PLATFORM_GROUP:presenter-molecule-impl:" + APP_PLATFORM_VERSION)
+        add("$APP_PLATFORM_GROUP:presenter-molecule-impl:$APP_PLATFORM_VERSION")
       }
       if (appPlatform.isKotlinInjectEnabled().get()) {
         add("$APP_PLATFORM_GROUP:kotlin-inject-impl:$APP_PLATFORM_VERSION")
+      }
+      if (appPlatform.isMetroEnabled().get()) {
+        add("$APP_PLATFORM_GROUP:metro-impl:$APP_PLATFORM_VERSION")
       }
     }
 
@@ -106,9 +116,12 @@ public open class AppPlatformPlugin : Plugin<Project> {
     @JvmStatic
     public fun exportedDependencies(): Set<String> =
       setOf(
+          "di-common-public",
           "kotlin-inject-contribute-public",
           "kotlin-inject-impl",
           "kotlin-inject-public",
+          "metro-impl",
+          "metro-public",
           "presenter-molecule-impl",
           "presenter-molecule-public",
           "presenter-public",

@@ -2,15 +2,13 @@ package software.amazon.app.platform.renderer
 
 import android.app.Application
 import androidx.test.platform.app.InstrumentationRegistry
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import software.amazon.app.platform.scope.RootScopeProvider
 import software.amazon.app.platform.scope.Scope
 import software.amazon.app.platform.scope.coroutine.CoroutineScopeScoped
 import software.amazon.app.platform.scope.coroutine.addCoroutineScopeScoped
-import software.amazon.app.platform.scope.di.addDiComponent
+import software.amazon.app.platform.scope.di.addKotlinInjectComponent
 
 class TestApplication : Application(), RootScopeProvider {
 
@@ -18,13 +16,11 @@ class TestApplication : Application(), RootScopeProvider {
 
   override val rootScope: Scope =
     Scope.buildRootScope {
-      addDiComponent(Component())
+      addKotlinInjectComponent(Component())
       addCoroutineScopeScoped(CoroutineScopeScoped(Job() + CoroutineName("test")))
     }
 
-  private inner class Component : ViewRenderer.Component, RendererComponent.Parent {
-    override val dispatcher: CoroutineDispatcher = Dispatchers.Main.immediate
-
+  private inner class Component : RendererComponent.Parent {
     override fun rendererComponent(factory: RendererFactory): RendererComponent =
       requireNotNull(rendererComponent)
   }

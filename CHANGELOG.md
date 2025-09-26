@@ -17,6 +17,51 @@
 ### Other Notes & Contributions
 
 
+## [0.0.7] - 2025-09-26
+
+### Changed
+
+- Changed the min SDK from 21 to 23, see #149.
+
+### Fixed
+
+- Fix NPE when removing Android Views from multiple child renderers with the same parent on activity destruction, see #150.
+
+
+## [0.0.6] - 2025-09-05
+
+### Added
+
+- Added support for [Metro](https://zacsweers.github.io/metro/) as dependency injection framework. User can choose between [`kotlin-inject-anvil`](https://github.com/amzn/kotlin-inject-anvil) and [Metro](https://zacsweers.github.io/metro/). For more details see the [documentation](https://amzn.github.io/app-platform/di/) for how to setup and use both dependency injection frameworks with App Platform.
+
+### Changed
+
+- Changed the provided `CoroutineScope` within `ViewRenderer` from a custom scope to `MainScope()`, see #124.
+- Disallow changing the parent View for `ViewRenderers`. For a different parent view `RendererFactory.getRenderer()` will now return a new `Renderer` instead of the cached instance. The cached instance is only returned for the same parent view, see #139.
+
+### Deprecated
+
+- Deprecated `diComponent()` and introduce `kotlinInjectComponent()` as replacement, see #106.
+- Deprecated `RendererFactory.getChildRendererForParent()`. `RendererFactory.getRenderer()` now provides the same functionality, see #139.
+
+### Fixed
+
+- Fix and stop suppressing NPE when removing Android Views, which lead to an inconsistent state and potential crashes laters, see #136.
+- Cancel the `CoroutineScope` in `ViewRenderer` in rare cases where `onDetach` for the view isn't triggered. This caused potential leaks, see #140.
+
+
+## [0.0.5] - 2025-08-15
+
+### Added
+
+- Added support for the new [Android-KMP library plugin](https://developer.android.com/kotlin/multiplatform/plugin) in App Platform's Gradle plugin.
+- Added a [recipe](https://amzn.github.io/app-platform/presenter/#navigation-3) for how to use the Navigation 3 library with App Platform.
+
+### Changed
+
+- Upgraded Kotlin to `2.2.10`.
+
+
 ## [0.0.4] - 2025-07-25
 
 ### Added
@@ -71,7 +116,10 @@
 
 - Initial release.
 
-[Unreleased]: https://github.com/amzn/app-platform/compare/0.0.4...HEAD
+[Unreleased]: https://github.com/amzn/app-platform/compare/0.0.7...HEAD
+[0.0.7]: https://github.com/amzn/app-platform/compare/0.0.7
+[0.0.6]: https://github.com/amzn/app-platform/compare/0.0.6
+[0.0.5]: https://github.com/amzn/app-platform/compare/0.0.5
 [0.0.4]: https://github.com/amzn/app-platform/compare/0.0.4
 [0.0.3]: https://github.com/amzn/app-platform/compare/0.0.3
 [0.0.2]: https://github.com/amzn/app-platform/compare/0.0.2

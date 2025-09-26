@@ -3,7 +3,8 @@ plugins {
 }
 
 appPlatformBuildSrc {
-    enableDi true
+    enableKotlinInject true
+    enableMetro true
     enableMolecule true
     enablePublishing true
 

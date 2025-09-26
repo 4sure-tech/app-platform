@@ -3,6 +3,7 @@ package software.amazon.app.platform.gradle.buildsrc
 import com.google.devtools.ksp.gradle.KspExtension
 import com.google.devtools.ksp.gradle.KspTask
 import com.ncorti.ktfmt.gradle.KtfmtExtension
+import com.ncorti.ktfmt.gradle.TrailingCommaManagementStrategy
 import guru.nidi.graphviz.engine.Format
 import io.github.terrakok.KmpHierarchyConfig
 import io.gitlab.arturbosch.detekt.Detekt
@@ -177,8 +178,8 @@ public open class KmpPlugin : Plugin<Project> {
       allPlatforms().forEach { platform -> platform.configureCompose() }
     }
 
-    fun Project.enableDi() {
-      plugins.apply(Plugins.KSP)
+    fun Project.enableKotlinInject() {
+      enableKsp()
 
       val kspExtension = extensions.getByType(KspExtension::class.java)
 
@@ -189,12 +190,6 @@ public open class KmpPlugin : Plugin<Project> {
         "disabled",
       )
 
-      tasks.withType(KspTask::class.java).configureEach { kspTask ->
-        if (kspTask is KotlinCompile) {
-          kspTask.compilerOptions.jvmTarget.set(javaTarget)
-        }
-      }
-
       if (isKmpModule) {
         kmpExtension.sourceSets.getByName("commonMain").dependencies {
           implementation(libs.findLibrary("kotlin.inject.runtime").get().get().toString())
@@ -202,7 +197,9 @@ public open class KmpPlugin : Plugin<Project> {
           implementation(
             libs.findLibrary("kotlin.inject.anvil.runtime.optional").get().get().toString()
           )
-          if (path != ":kotlin-inject:public") {
+
+          if (path != ":di-common:public" && path != ":kotlin-inject:public") {
+            implementation(project(":di-common:public"))
             implementation(project(":kotlin-inject:public"))
             if (!path.startsWith(":kotlin-inject-extensions:contribute:")) {
               implementation(project(":kotlin-inject-extensions:contribute:public"))
@@ -222,7 +219,8 @@ public open class KmpPlugin : Plugin<Project> {
           "implementation",
           libs.findLibrary("kotlin.inject.anvil.runtime.optional").get().get().toString(),
         )
-        if (path != ":kotlin-inject:public") {
+        if (path != ":di-common:public" && path != ":kotlin-inject:public") {
+          dependencies.add("implementation", project(":di-common:public"))
           dependencies.add("implementation", project(":kotlin-inject:public"))
           if (!path.startsWith(":kotlin-inject-extensions:contribute:")) {
             dependencies.add(
@@ -242,7 +240,8 @@ public open class KmpPlugin : Plugin<Project> {
 
         // Avoid creating a circular dependency.
         if (
-          path != ":kotlin-inject:public" &&
+          path != ":di-common:public" &&
+            path != ":kotlin-inject:public" &&
             !path.startsWith(":kotlin-inject-extensions:contribute:")
         ) {
           add(kspConfigurationName, project(":kotlin-inject-extensions:contribute:public"))
@@ -265,6 +264,47 @@ public open class KmpPlugin : Plugin<Project> {
       }
     }
 
+    fun Project.enableMetro() {
+      plugins.apply(Plugins.METRO)
+
+      // Enable KSP for our custom extensions.
+      enableKsp()
+
+      if (isKmpModule) {
+        kmpExtension.sourceSets.getByName("commonMain").dependencies {
+          implementation(project(":di-common:public"))
+          implementation(project(":metro:public"))
+        }
+      } else {
+        dependencies.add("implementation", project(":metro:public"))
+      }
+
+      fun DependencyHandler.addKspProcessorDependencies(kspConfigurationName: String) {
+        add(kspConfigurationName, project(":metro-extensions:contribute:impl-code-generators"))
+      }
+
+      if (isKmpModule) {
+        kmpExtension.targets.configureEach {
+          if (it.name != "metadata") {
+            dependencies.addKspProcessorDependencies("ksp${it.name.capitalize()}")
+            dependencies.addKspProcessorDependencies("ksp${it.name.capitalize()}Test")
+          }
+        }
+      } else {
+        dependencies.addKspProcessorDependencies("ksp")
+      }
+    }
+
+    private fun Project.enableKsp() {
+      plugins.apply(Plugins.KSP)
+
+      tasks.withType(KspTask::class.java).configureEach { kspTask ->
+        if (kspTask is KotlinCompile) {
+          kspTask.compilerOptions.jvmTarget.set(javaTarget)
+        }
+      }
+    }
+
     fun Project.enableMolecule() {
       plugins.apply(Plugins.COMPOSE_COMPILER)
       kmpExtension.sourceSets.getByName("commonMain").dependencies {
@@ -277,7 +317,7 @@ public open class KmpPlugin : Plugin<Project> {
 
       extensions.getByType(KtfmtExtension::class.java).apply {
         googleStyle()
-        manageTrailingCommas.set(true)
+        trailingCommaManagementStrategy.set(TrailingCommaManagementStrategy.COMPLETE)
         removeUnusedImports.set(true)
       }
 

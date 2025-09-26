@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
   alias(libs.plugins.appPlatform)
-  alias(libs.plugins.androidLibrary)
+  alias(libs.plugins.androidKmpLibrary)
   alias(libs.plugins.kotlinMultiplatform)
 }
 
@@ -23,7 +23,10 @@ kotlin {
     }
   }
 
-  androidTarget {
+  androidLibrary {
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    minSdk = libs.versions.android.minSdk.get().toInt()
+
     compilerOptions {
       jvmTarget.set(JvmTarget.JVM_11)
     }
@@ -45,14 +48,5 @@ kotlin {
         implementation(libs.compose.material)
       }
     }
-  }
-}
-
-android {
-  namespace = "software.amazon.app.platform.template.templates.impl"
-  compileSdk = libs.versions.android.compileSdk.get().toInt()
-
-  defaultConfig {
-    minSdk = libs.versions.android.minSdk.get().toInt()
   }
 }

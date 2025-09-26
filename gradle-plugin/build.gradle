@@ -12,7 +12,7 @@ plugins {
 
 ktfmt {
     googleStyle()
-    manageTrailingCommas.set(true)
+    trailingCommaManagementStrategy.set(com.ncorti.ktfmt.gradle.TrailingCommaManagementStrategy.COMPLETE)
     removeUnusedImports.set(true)
 }
 
@@ -61,6 +61,9 @@ dependencies {
     // compileOnly, because not every consumer of this Gradle plugin will use KMP. All usages
     // are guarded by checks when the plugin is applied.
     compileOnly libs.kotlin.multiplatform.gradle.plugin
+
+    // compileOnly to not force this dependency.
+    compileOnly libs.metro.gradle.plugin
 
     lintChecks libs.androidx.lint.gradle
 }

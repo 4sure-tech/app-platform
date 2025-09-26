@@ -12,7 +12,7 @@ buildConfig {
 
 ktfmt {
     googleStyle()
-    manageTrailingCommas.set(true)
+    trailingCommaManagementStrategy.set(com.ncorti.ktfmt.gradle.TrailingCommaManagementStrategy.COMPLETE)
     removeUnusedImports.set(true)
 }
 
@@ -77,6 +77,7 @@ dependencies {
     implementation libs.kotlin.hierarchy.plugin
     implementation libs.ktfmt.gradle.plugin
     implementation libs.maven.publish.gradle.plugin
+    implementation libs.metro.gradle.plugin
     implementation libs.detekt.gradle.plugin
     implementation "software.amazon.app.platform:gradle-plugin:0.0.6-SNAPSHOT"
 }
